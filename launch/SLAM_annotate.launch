@@ -1,0 +1,14 @@
+<launch>
+	<!-- arguments -->
+	<arg name="rosbag" doc="Absolute path to rosbag file"/>
+	<arg name="yolo" doc="Absolute path to folder containing pre-trained YOLO model"/>
+	<arg name="objects" doc="Objects to be recognized" default="person"/>
+	<arg name="speed" doc="Adjust speed of playback (sec)" default="0.005"/>
+	<arg name="video" doc="Absolute path of video to write" default="None"/>
+
+	<!-- nodes -->
+	<node pkg="access_mapping" name="gate" type="gate.py" args="--rosbag $(arg rosbag) --nodes $(arg objects) --speed $(arg speed)"/>
+
+	<node pkg="access_mapping" name="object_detect" type="object_detect.py" args="--yolo $(arg yolo) --objects $(arg objects) --video $(arg video) --speed $(arg speed)"/>
+
+</launch>
