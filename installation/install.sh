@@ -15,6 +15,7 @@
 #		different than procedure followed on the ROS wiki. Please see references
 #		below. Project undertaken as part of NSF-REU program at Virginia Tech.
 # References: 	https://www.pyimagesearch.com/2018/05/28/ubuntu-18-04-how-to-install-opencv/
+#		https://github.com/opencv/opencv/issues/14868
 #	      	https://realpython.com/python-virtual-environments-a-primer/
 #		http://wiki.ros.org/melodic/Installation/Ubuntu
 #		https://catkin-tools.readthedocs.io/en/latest/quick_start.html
@@ -24,6 +25,9 @@
 #		https://github.com/ros/geometry2/issues/259
 #		https://github.com/ros/geometry2/issues/293
 #		https://itsfoss.com/install-ubuntu-1404-dual-boot-mode-windows-8-81-uefi/
+#		https://github.com/git-lfs/git-lfs/wiki/Installation
+#		https://git-lfs.github.com/
+#		https://towardsdatascience.com/uploading-large-files-to-github-dbef518fa1a
 
 # variables
 cv_version=3.4.7	# desired version of OpenCV
@@ -78,11 +82,20 @@ echo "export WORKON_HOME=$HOME/.virtualenvs" >> $shell_setup
 echo "export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3" >> $shell_setup
 echo "source /usr/local/bin/virtualenvwrapper.sh" >> $shell_setup
 source $shell_setup
+source /usr/local/bin/virtualenvwrapper.sh
 mkvirtualenv $virtual_env -p python3
 workon $virtual_env
 
 # install numpy in virtual environment
 pip install numpy
+
+# Reference wahyubram82' answer: https://github.com/opencv/opencv/issues/14868
+# Edit the file located at opencv/modules/core/include/opencv2/core/private.hpp
+# edit the line:
+# include <Eigen/Core>
+# to be:
+# include <eigen3/Eigen/Core>
+sed -i 's!include <Eigen/Core>!include <eigen3/Eigen/Core>!' ~/opencv/modules/core/include/opencv2/core/private.hpp
 
 # configure OpenCV with CMake and compile; will take some time
 cd ~/opencv
@@ -163,12 +176,6 @@ mkdir -p $catkin_ws/src
 cd $catkin_ws
 catkin init
 
-# create package inside workspace
-cd src
-catkin create pkg $pkg
-cd ..
-catkin build
-
 # source catkin workspace
 echo "alias catsource='source ~/$catkin_ws/devel/setup.bash'" >> $shell_setup
 source $shell_setup
@@ -209,8 +216,22 @@ catkin build tf tf2_ros
 source devel/setup.bash # catsource
 
 ############################################################################
-# OTHER
+# SETUP AND BUILD ACCESS_MAPPING PACKAGE FROM GIT
 ############################################################################
+# use git-lfs to store yolov3.weights file on github repository
+# See https://git-lfs.github.com/
+# See https://github.com/git-lfs/git-lfs/wiki/Installation
 echo -e "\n# Source ROS and catkin environments" >> $shell_setup
 echo "rossource && catsource" >> $shell_setup
 source $shell_setup
+
+# setup and install git-lfs (for large files)
+sudo apt-get install git-lfs
+
+# build access_mapping package
+cd ~/$catkin_ws/src
+git clone https://github.com/eckelsjd/access_mapping.git
+git lfs install
+cd ..
+catkin build access_mapping
+source devel/setup.bash
