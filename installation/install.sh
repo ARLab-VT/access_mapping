@@ -189,6 +189,7 @@ deactivate
 #	See https://github.com/ros/geometry2/issues/293
 # setup catkin workspace
 rossource
+cd ~
 mkdir -p $catkin_ws/src
 cd $catkin_ws/src
 git clone https://github.com/ros/geometry
