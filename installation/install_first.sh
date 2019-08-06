@@ -84,7 +84,6 @@ sudo apt-get install libatlas-base-dev gfortran
 
 # install Python 3 headers and libraries
 sudo apt-get install python3-dev
-sudo apt install testresources
 
 # download opencv and opencv_contrib source code
 cd ~
@@ -156,56 +155,3 @@ deactivate
 # cd ~
 # rm opencv.zip opencv_contrib.zip
 # rm -rf opencv opencv_contrib
-
-############################################################################
-# SETUP CATKIN WORKSPACE (USING CATKIN_TOOLS)
-############################################################################
-# install catkin_tools with apt-get
-# note: This should be done separately from the tutorials on ROS wiki.
-#	catkin_tools work seperately from default catkin tools (catkin_make,etc.)
-#	See https://catkin-tools.readthedocs.io/en/latest/history.html
-#	See https://answers.ros.org/question/243192/catkin_make-vs-catkin-build/
-#	for options in combining catkin build and catkin_make (not recommended).
-sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu `lsb_release -sc` main" > /etc/apt/sources.list.d/ros-latest.list'
-wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
-sudo apt-get update
-sudo apt-get install python-catkin-tools
-
-workon $virtual_env
-sudo apt-get install python3-pip python3-yaml
-sudo apt-get install python-catkin-tools python3-dev python3-numpy
-deactivate
-
-############################################################################
-# BUILD CV_BRIDGE, GEOMETRY, GEOMETRY2, ACCESS_MAPPING for ROS in PYTHON3
-############################################################################
-# install required ROS packages to use Python 3 in ROS
-# note:	These steps were taken to resolve issues in running python3 scripts
-#	with python2 dependencies: cv_bridge, tf, tf2_ros.
-#	Similar steps might be taken to build other python2 packages for use
-#	in python3 scripts or nodes.
-#	See https://medium.com/@beta_b0t/how-to-setup-ros-with-python-3-44a69ca36674
-#	See https://github.com/ros/geometry2/issues/259
-#	See https://github.com/ros/geometry2/issues/293
-# setup catkin workspace
-rossource
-cd ~
-mkdir -p $catkin_ws/src
-cd $catkin_ws/src
-git clone https://github.com/ros/geometry
-git clone https://github.com/ros/geometry2
-git clone -b $ros_version https://github.com/ros-perception/vision_opencv.git
-git clone https://github.com/eckelsjd/access_mapping.git
-cd ..
-workon $virtual_env
-pip install rospkg catkin_pkg pyyaml empy
-catkin config -DPYTHON_EXECUTABLE=~/.virtualenvs/$virtual_env/bin/python -DPYTHON_INCLUDE_DIR=~/.virtualenvs/$virtual_env/include/python3.6m
-catkin config --no-install
-catkin build
-source devel/setup.bash
-
-# source catkin workspace
-echo "alias catsource='source ~/$catkin_ws/devel/setup.bash'" >> $shell_setup
-source $shell_setup
-rossource
-catsource
