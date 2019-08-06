@@ -100,7 +100,7 @@ wget https://bootstrap.pypa.io/get-pip.py
 sudo python3 get-pip.py
 
 # install virtualenv and virtualenvwrapper
-pip install virtualenv virtualenvwrapper
+sudo pip install virtualenv virtualenvwrapper
 sudo rm -rf ~/get-pip.py ~/.cache/pip
 
 # setup python3 virtual environment
