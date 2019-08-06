@@ -24,7 +24,9 @@ class GateListener:
         self.tf = None
         self.odom = None
         self.play_mode = None
-        self.tf_listener = None
+        self.tf_listener = None	
+        self.grid_pub = None
+        self.occ_grid = None
         self.gate_sub = None
         self.gate_end = rospy.Subscriber("/end", String, self.shutdown)
         self.stepping = False
@@ -310,7 +312,10 @@ def tf_global(arr, target_frame='map'):
     """
     tf_buffer = tf2_ros.Buffer()
     tf2_listener = tf2_ros.TransformListener(tf_buffer)
-    transform = tf_buffer.lookup_transform(target_frame,"zed_left_camera_optical_frame", rospy.Time.now(), rospy.Duration(1.0))        
+    transform = tf_buffer.lookup_transform(target_frame,
+                                           "zed_left_camera_optical_frame",
+                                           rospy.Time.now(), 
+                                           rospy.Duration(1.0))        
 
     # array to fill with desired objects
     # format: [(label, 3DPointStamped), (..), ...]
@@ -353,10 +358,10 @@ def make_grid(width = 100, height = 100, resolution = 0.05):
     return OccupancyGrid(h,info,data)
 
 def modify_grid(arr):
-    width = occ_grid.MapMetaData.width
-    height = occ_grid.MapMetaData.height
-    resolution = occ_grid.MapMetaData.resolution
-    data = occ_grid.data
+    width = listener.occ_grid.MapMetaData.width
+    height = listener.occ_grid.MapMetaData.height
+    resolution = listener.occ_grid.MapMetaData.resolution
+    data = listener.occ_grid.data
     if arr:
         for obj in arr:
             point_stamped = obj[1]
@@ -368,8 +373,8 @@ def modify_grid(arr):
 
                 index = y + x*width
                 data[index] = 100
-                occ_grid.data[index] = data[index]
-                self.grid_pub.publish(occ_grid)
+                listener.occ_grid.data[index] = data[index]
+                listener.grid_pub.publish(listener.occ_grid)
 
 #def convert_3d(arr):
 #    # array to fill with desired object 3D coordinates
@@ -417,12 +422,12 @@ def process_callback():
 
         # Enea's code:
         points_3d = convert3d(depths) if depths else None
-        print("3D Points in left camera frame: {}".format(points_3d)) if points_3d else print("No 3D points obtained")
+        #print("3D Points in left camera frame: {}".format(points_3d)) if points_3d else print("No 3D points obtained")
 
-        #global_3d = tf_global(points_3d) if points_3d else None
-        #print("3D Points in global frame: {}".format(global_3d)) if global_3d else print("No global 3D points obtained")
+        global_3d = tf_global(points_3d) if points_3d else None
+        print("3D Points in global frame: {}".format(global_3d)) if global_3d else print("No global 3D points obtained")
         
-        # modify_grid(points_3d) if points_3d else None
+        modify_grid(points_3d) if points_3d else None
 
         # 2d_to_3d         -> (X,Y,Z) and label in camera's ref frame
         # points_3d = convert_3d(depths) if depths else None
@@ -448,9 +453,9 @@ def start_node():
     listener.tf_listener = tf.TransformListener()
 
     # Make occupancy grid
-    occ_grid = make_grid()
-    grid_pub = rospy.Publisher('GRID', OccupancyGrid, queue_size=10)
-    grid_pub.publish(occ_grid)
+    listener.occ_grid = make_grid()
+    listener.grid_pub = rospy.Publisher('GRID', OccupancyGrid, queue_size=10)
+    listener.grid_pub.publish(listener.occ_grid)
 
     # open gate initially for continuous, auto-step, and fast-forward modes
     if (listener.play_mode != "step"):

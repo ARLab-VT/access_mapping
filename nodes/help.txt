@@ -1,0 +1,15 @@
+rossource
+mkdir -p catkin_ws2/src
+cd catkin_ws2/src/
+git clone https://github.com/ros/geometry
+git clone https://github.com/ros/geometry2
+git clone -b melodic https://github.com/ros-perception/vision_opencv.git
+git clone https://github.com/eckelsjd/access_mapping.git
+cd ..
+workon cv
+catkin config -DPYTHON_EXECUTABLE=~/.virtualenvs/cv/bin/python -DPYTHON_INCLUDE_DIR=~/.virtualenvs/cv/include/python3.6m
+catkin config --no-install
+catkin build
+source devel/setup.bash
+
+roscd, rosrun, etc...

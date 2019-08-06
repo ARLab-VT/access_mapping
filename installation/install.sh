@@ -38,6 +38,32 @@ catkin_ws=catkin_ws_cb	# desired name of catkin workspace
 pkg=access_mapping	# name of ROS package to build
 
 ############################################################################
+# INSTALL ROS (SEE ROS WIKI)
+############################################################################
+# setup sources
+sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
+sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+
+# update system
+sudo apt update
+
+# install
+sudo apt install ros-$ros_version-desktop-full
+
+# rosdep
+sudo rosdep init
+rosdep update
+
+# source ROS environment
+echo -e "\n# Setup ROS-$ros_version workspace" >> $shell_setup
+echo "alias rossource='source /opt/ros/$ros_version/setup.bash'" >> $shell_setup
+source $shell_setup
+rossource
+
+# install package-building dependencies
+sudo apt install python-rosinstall python-rosinstall-generator python-wstool build-essential
+
+############################################################################
 # INSTALL OPENCV (FROM SOURCE)
 ############################################################################
 # update system
@@ -58,6 +84,7 @@ sudo apt-get install libatlas-base-dev gfortran
 
 # install Python 3 headers and libraries
 sudo apt-get install python3-dev
+sudo apt install testresources
 
 # download opencv and opencv_contrib source code
 cd ~
@@ -73,7 +100,7 @@ wget https://bootstrap.pypa.io/get-pip.py
 sudo python3 get-pip.py
 
 # install virtualenv and virtualenvwrapper
-sudo pip install virtualenv virtualenvwrapper
+pip install virtualenv virtualenvwrapper
 sudo rm -rf ~/get-pip.py ~/.cache/pip
 
 # setup python3 virtual environment
@@ -131,32 +158,6 @@ deactivate
 # rm -rf opencv opencv_contrib
 
 ############################################################################
-# INSTALL ROS (SEE ROS WIKI)
-############################################################################
-# setup sources
-sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
-sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
-
-# update system
-sudo apt update
-
-# install
-sudo apt install ros-$ros_version-desktop-full
-
-# rosdep
-sudo rosdep init
-rosdep update
-
-# source ROS environment
-echo -e "\n# Setup ROS-$ros_version workspace" >> $shell_setup
-echo "alias rossource='source /opt/ros/$ros_version/setup.bash'" >> $shell_setup
-source $shell_setup
-rossource
-
-# install package-building dependencies
-sudo apt install python-rosinstall python-rosinstall-generator python-wstool build-essential
-
-############################################################################
 # SETUP CATKIN WORKSPACE (USING CATKIN_TOOLS)
 ############################################################################
 # install catkin_tools with apt-get
@@ -170,21 +171,13 @@ wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
 sudo apt-get update
 sudo apt-get install python-catkin-tools
 
-# setup catkin workspace
-source /opt/ros/$ros_version/setup.bash # rossource
-cd ~
-mkdir -p $catkin_ws/src
-cd $catkin_ws
-catkin init
-catkin build
-
-# source catkin workspace
-echo "alias catsource='source ~/$catkin_ws/devel/setup.bash'" >> $shell_setup
-source $shell_setup
-catsource
+workon $virtual_env
+sudo apt-get install python3-pip python3-yaml
+sudo apt-get install python-catkin-tools python3-dev python3-numpy
+deactivate
 
 ############################################################################
-# BUILD CV_BRIDGE, GEOMETRY, GEOMETRY2 for ROS in PYTHON3
+# BUILD CV_BRIDGE, GEOMETRY, GEOMETRY2, ACCESS_MAPPING for ROS in PYTHON3
 ############################################################################
 # install required ROS packages to use Python 3 in ROS
 # note:	These steps were taken to resolve issues in running python3 scripts
@@ -194,47 +187,24 @@ catsource
 #	See https://medium.com/@beta_b0t/how-to-setup-ros-with-python-3-44a69ca36674
 #	See https://github.com/ros/geometry2/issues/259
 #	See https://github.com/ros/geometry2/issues/293
-workon $virtual_env
-sudo apt-get install python3-pip python3-yaml
-sudo pip3 install rospkg catkin_pkg
-sudo pip install pyyaml empy 
-
-# build cv_bridge for Python 3
-sudo apt-get install python-catkin-tools python3-dev python3-numpy
-cd ~/$catkin_ws
-catkin config -DPYTHON_EXECUTABLE=~/.virtualenvs/$virtual_env/bin/python -DPYTHON_INCLUDE_DIR=~/.virtualenvs/$virtual_env/include/python3.6m
-catkin config --no-install
-cd src
-git clone -b $ros_version https://github.com/ros-perception/vision_opencv.git
-cd ~/$catkin_ws
-catkin build cv_bridge
-
-# build tf and tf2_ros from source for Python 3
-cd ~/$catkin_ws/src
+# setup catkin workspace
+rossource
+mkdir -p $catkin_ws/src
+cd $catkin_ws/src
 git clone https://github.com/ros/geometry
 git clone https://github.com/ros/geometry2
-cd ..
-catkin build
-source devel/setup.bash # catsource
-
-############################################################################
-# SETUP AND BUILD ACCESS_MAPPING PACKAGE FROM GIT
-############################################################################
-# use git-lfs to store yolov3.weights file on github repository
-# See https://git-lfs.github.com/
-# See https://github.com/git-lfs/git-lfs/wiki/Installation
-echo -e "\n# Source ROS and catkin environments" >> $shell_setup
-echo "rossource && catsource" >> $shell_setup
-source $shell_setup
-workon $virtual_env
-
-# setup and install git-lfs (for large files)
-sudo apt-get install git-lfs
-
-# build access_mapping package
-cd ~/$catkin_ws/src
+git clone -b $ros_version https://github.com/ros-perception/vision_opencv.git
 git clone https://github.com/eckelsjd/access_mapping.git
-git lfs install
 cd ..
-catkin build access_mapping
+workon $virtual_env
+pip install rospkg catkin_pkg pyyaml empy
+catkin config -DPYTHON_EXECUTABLE=~/.virtualenvs/$virtual_env/bin/python -DPYTHON_INCLUDE_DIR=~/.virtualenvs/$virtual_env/include/python3.6m
+catkin config --no-install
+catkin build
 source devel/setup.bash
+
+# source catkin workspace
+echo "alias catsource='source ~/$catkin_ws/devel/setup.bash'" >> $shell_setup
+source $shell_setup
+rossource
+catsource
