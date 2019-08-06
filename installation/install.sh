@@ -171,7 +171,7 @@ sudo apt-get update
 sudo apt-get install python-catkin-tools
 
 # setup catkin workspace
-source opt/ros/$ros_version/setup.bash # rossource
+source /opt/ros/$ros_version/setup.bash # rossource
 cd ~
 mkdir -p $catkin_ws/src
 cd $catkin_ws
@@ -214,7 +214,7 @@ cd ~/$catkin_ws/src
 git clone https://github.com/ros/geometry
 git clone https://github.com/ros/geometry2
 cd ..
-catkin build tf tf2_ros
+catkin build
 source devel/setup.bash # catsource
 
 ############################################################################
