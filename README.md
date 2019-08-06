@@ -10,45 +10,45 @@ All installation steps below were performed and tested on a fresh Ubuntu 18.04 i
 
 3. **Navigate to Downloads folder and move installation scripts to home directory:**
     `cd Downloads`
-    `mv install_first.sh install_second.sh ~ `
+    `mv install_first.sh install_second.sh ~ ` 
+    
+    `cd ~`
+    
+4. **Allow execution of both scripts:** 
 
-  `cd ~`
+    `chmod +x install_first.sh` 
 
-4. **Allow execution of both scripts:**
-
-  `chmod +x install_first.sh`
-
-  `chmod +x install_second.sh`
+    `chmod +x install_second.sh`
 
 5. **Run the first installation script by typing the following into the terminal:**
 
-  `./install_first.sh`
+    `./install_first.sh`
 
-  Allow the  script to run to completion. Confirm installation of all required packages as the script runs by pressing enter or typing password as prompted.
+    Allow the  script to run to completion. Confirm installation of all required packages as the script runs by pressing enter or typing password as prompted.
 
-  `install_first.sh` downloads ROS melodic into the system and builds OpenCV v.3.4.7 from source into a python 3 virtual environment.
+    `install_first.sh` downloads ROS melodic into the system and builds OpenCV v.3.4.7 from source into a python 3 virtual environment.
 
 6. **Run the second installation script by typing the following into the terminal:**
 
-  `./install_second.sh`
+   `./install_second.sh`
 
-  Allow the script to run to completion and confirm all installation requests.
+   Allow the script to run to completion and confirm all installation requests.
 
-  `install_second.sh` sets up a catkin workspace and builds several ROS packages for use with python 3. It also clones the `access_mapping` repository and builds it for use with python 3.
+   `install_second.sh` sets up a catkin workspace and builds several ROS packages for use with python 3. It also clones the `access_mapping` repository and builds it for use with python 3.
 
 7. **Download the YOLOv3 neural network model for use with OpenCV's `dnn` neural network module:** https://tinyurl.com/yolo-files  by navigating to the link and saving the `yolo-coco` folder in the source directory of the `access_mapping` package.
 
-  `mv <your_yolo_zip_file.zip> ~/catkin_ws_cb/src/access_mapping`
+   `mv <your_yolo_zip_file.zip> ~/catkin_ws_cb/src/access_mapping`
 
-  `cd ~/catkin_ws_cb/src/access_mapping`
+   `cd ~/catkin_ws_cb/src/access_mapping`
 
-  `unzip <your_yolo_zip_file.zip>`
+   `unzip <your_yolo_zip_file.zip>`
 
 8. **Ensure proper system setup by sourcing  .setup files:**
 
-  `rossource` (alias created during install for sourcing ROS workspace, or `source /opt/ros/melodic/setup.bash`)
+   `rossource` (alias created during install for sourcing ROS workspace, or `source /opt/ros/melodic/setup.bash`)
 
-  `catsource` (alias created during install for sourcing catkin workspace, or `source ~/catkin_ws_cb/devel/setup.bash`)
+   `catsource` (alias created during install for sourcing catkin workspace, or `source ~/catkin_ws_cb/devel/setup.bash`)
 
 ### Testing install
 1. **Open a new terminal window and source setup files:**
