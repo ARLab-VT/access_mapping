@@ -123,6 +123,7 @@ cd $(dirname $(find /usr -name cv2.cpython-36m-x86_64-linux-gnu.so))
 sudo mv cv2.cpython-36m-x86_64-linux-gnu.so cv2.so
 cd ~/.virtualenvs/$virtual_env/lib/python3.6/site-packages/
 ln -s $(find /usr -name cv2.so) cv2.so
+deactivate
 
 # remove files/folders (optional)
 # cd ~
@@ -175,6 +176,7 @@ cd ~
 mkdir -p $catkin_ws/src
 cd $catkin_ws
 catkin init
+catkin build
 
 # source catkin workspace
 echo "alias catsource='source ~/$catkin_ws/devel/setup.bash'" >> $shell_setup
@@ -195,7 +197,7 @@ catsource
 workon $virtual_env
 sudo apt-get install python3-pip python3-yaml
 sudo pip3 install rospkg catkin_pkg
-pip install pyyaml empy 
+sudo pip install pyyaml empy 
 
 # build cv_bridge for Python 3
 sudo apt-get install python-catkin-tools python3-dev python3-numpy
@@ -224,6 +226,7 @@ source devel/setup.bash # catsource
 echo -e "\n# Source ROS and catkin environments" >> $shell_setup
 echo "rossource && catsource" >> $shell_setup
 source $shell_setup
+workon $virtual_env
 
 # setup and install git-lfs (for large files)
 sudo apt-get install git-lfs
