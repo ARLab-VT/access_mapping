@@ -1,2 +1,7 @@
-# Don't track content of these folders
+# Don't track content of these files
+
+# files in yolo-coco are too big
 yolo-coco/
+
+# rosbag files are too big
+# rosbag/example.bag
