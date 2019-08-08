@@ -75,6 +75,7 @@ Allow the script to run to completion and confirm all installation requests. `in
 ```bash
 cd <your_downloads_folder>
 mv <your_yolo_file.zip> ~/catkin_ws_cb/src/access_mapping
+cd ~/catkin_ws_cb/src/access_mapping
 unzip <your_yolo_file.zip>
 rm <your_yolo_file.zip>   
 ```
