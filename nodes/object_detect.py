@@ -1,6 +1,38 @@
 #!/usr/bin/env python3 
+"""
+object_detect.py:   Python 3 script for running a ROS node
+Contributors:       Joshua Eckels, Enea Dushaj
+Organization:       Virginia Tech NSF-REU
+Date:               August 7, 2019
+Note:               This python ROS node only works in tandem with the gate.py node in 
+                    the access_mapping ROS package. The gate.py node must be run first to
+                    initialize a rosbag for playback. This node must be executed while
+                    in the python 3 virtual environment where OpenCV was installed.
+                    Activate virtualenvironment using: workon cv
 
-# Usage: rosrun ros_cv object_detect.py --yolo ../path_to_yolo_dir --objects
+Doc:    This node receives image and transform messages from ROS topics, passes an image
+        through a pre-trained YOLOv3 neural network for object detection, obtains localized center
+        points for each object detected, determines each objects' location in 3D space relative
+        to the ZED camera, transforms the locations to a global map, and exports a list of all
+        detected objects and locations for later use in global map annotation.
+
+Command-line arguments:
+    -y  /  --yolo       : base path to folder containing YOLO config and weights [REQUIRED]
+    -o  /  --objects    : list of objects within pre-trained coco dataset to be detected by node
+                          format: --objects person,tvmonitor,chair,etc
+    -p  /  --playback   : character to determine playback mode (see GateListener)
+    -z  /  --topics     : list of 6 ROS topics to listen to (see GateListener)
+                          note: must be in the order indicated in docstring below
+    -v  /  --video      : name of video file to write in current directory (defaults to no video)
+    -s  /  --speed      : value to toggle the loop playback speed of this node
+    -t  /  --threshold  : Threshold when applying non-maxima suppression (for YOLO use)
+    -c  /  --confidence : Minimum probability to filter weak detections (for YOLO use)
+
+Usage: rosrun access_mapping object_detect.py --yolo ../yolo-coco [-o person,chair] 
+        [-p s] [-z img,inf,depth,infd,tf,odom] [-v output.avi] [-s 0.01] [-t 0.4] [-c 0.6]
+
+"""
+
 import rospy
 import tf, tf2_ros 
 from sensor_msgs.msg import Image, CameraInfo
@@ -15,34 +47,69 @@ import numpy as np
 import argparse
 import sys, termios, tty, os, time, select
 
+"""
+Class:   GateListener
+Args:    None
+Fields:  A GateListener object initializes 6 subscribers to ROS topics 
+         and 6 storage variables for messages received on these topics. 
+         These topics correspond to the 6 required topics for successful
+         object detection and image processing. The default values
+         are set up for processing from a ZED stereo camera rosbag recording:
+         rgb image topic:    /zed/zed_node/rgb/image_rect_color
+         rgb camera info:    /zed/zed_node/rgb/camera_info
+         depth image topic:  /zed/zed_node/depth/depth_registered
+         depth camera info:  /zed/zed_node/depth/camera_info
+         transform frame:    /tf
+         camera odometry:    /zed/zed_node/odom
+         A GateListener object holds the boolean 'play_mode', set by the user, 
+         that determines how the object_detect node interacts with the gate node.
+         There are 4 playback modes:
+           Continuous: gate will publish messages independent of object_detect node
+           Step: gate will only publish one message upon user keyboard input
+           Auto-step: gate sends messages only when object_detect node has completed processing
+           Fast-forward: gate sends messages and no image processing is performed
+         A GateListener object holds 3 storage variables for transforms and occupancy grids
+Methods: A GateListener has 6 callback methods for storing ROS topic messages, a
+         method for toggling the gate node, and a method for node shutdown.
+"""
 class GateListener:
     def __init__(self):
+        # storage variables for the 6 ROS topics 
         self.image = None
         self.image_info = None
         self.depth = None
         self.depth_info = None
         self.tf = None
         self.odom = None
+
+        # play mode determines how node interacts with the gate
         self.play_mode = None
+        self.stepping = False
+
+        # storage variables for use with transforms and occupancy grid
         self.tf_listener = None	
         self.grid_pub = None
         self.occ_grid = None
-        self.gate_sub = None
-        self.gate_end = rospy.Subscriber("/end", String, self.shutdown)
-        self.stepping = False
-        self.gate_pub = rospy.Publisher("/ready", String, queue_size=10)
-        self.image_sub = rospy.Subscriber(img_topic, Image,
-                self.image_callback)
-        self.image_info_sub = rospy.Subscriber(img_info_topic, CameraInfo,
-                self.image_info_callback)
-        self.depth_sub = rospy.Subscriber(depth_topic, Image,
-                self.depth_callback)
-        self.depth_info_sub = rospy.Subscriber(depth_info_topic, CameraInfo,
-                self.depth_info_callback)
-        self.tf_sub = rospy.Subscriber(tf_topic, TFMessage, self.tf_callback)
-        self.odom_sub = rospy.Subscriber(odom_topic, Odometry,
-                self.odom_callback)
 
+        # communication lines via Subscriber/Publisher to gate node
+        self.gate_sub = None
+        self.gate_pub = rospy.Publisher("/ready", String, queue_size=10)
+        self.gate_end = rospy.Subscriber("/end", String, self.shutdown)
+
+        # 6 ROS topic listeners
+        self.topic_sub = { "image_sub" : rospy.Subscriber(topics["img_topic"], Image,
+                self.image_callback),
+                "image_info_sub" : rospy.Subscriber(topics["img_info_topic"], CameraInfo,
+                self.image_info_callback),
+                "depth_sub" : rospy.Subscriber(topics["depth_topic"], Image,
+                self.depth_callback),
+                "depth_info_sub" : rospy.Subscriber(topics["depth_info_topic"], CameraInfo,
+                self.depth_info_callback),
+                "tf_sub" : rospy.Subscriber(topics["tf_topic"], TFMessage, self.tf_callback),
+                "odom_sub" : rospy.Subscriber(topics["odom_topic"], Odometry,
+                self.odom_callback) }
+
+    # 6 callback methods to store ROS topic messages internally
     def image_callback(self, msg):
         self.image = msg
 
@@ -61,19 +128,23 @@ class GateListener:
     def tf_callback(self, msg):
         self.tf = msg
 
+    # publishes the name of each node_object to the gate node on the /ready topic
+    # this alerts the gate node that this object_node has finished processing a set of data
     def trigger_gate(self):
         for obj in node_objects:
             self.gate_pub.publish(obj)
 
+    # close out of program
     def shutdown(self,msg):
-        # close out of program
         if (msg.data == "shutdown"):
             print("Closing program on gate shutdown . . .")
             rospy.signal_shutdown("closing node")
             
+# for reading keyboard input
 def isData():
     return select.select([sys.stdin],[],[],0) == ([sys.stdin],[],[])
 
+# saving object detection video
 def write_video():
     if not video_array:
         pass
@@ -86,6 +157,8 @@ def write_video():
         out.release()
         print("Done writing video.")
 
+# pass a ROS sensor_msgs/Image message through object detection
+# return an array of objects detected with their center value
 def object_detection():
     try:
         image = bridge.imgmsg_to_cv2(listener.image, "bgr8")
@@ -178,29 +251,6 @@ def object_detection():
                                 w, h)
                         detect_array.append(tuple_to_append)
 
-#                        publish message to /detect topic
-#                        detect_msg = Detect()
-#                        detect_msg.label = obj
-#                        h = std_msgs.msg.Header()
-#                        h.frame_id = "/detection"
-#                        h.stamp = rospy.Time.now()
-#                        detect_msg.header = h
-#                        detect_msg.header.stamp = rospy.Time.now()
-#                          
-#                        point_stamped = geometry_msgs.msg.PointStamped()
-#                        header = std_msgs.msg.Header()
-#                        header.stamp = rospy.Time.now()
-#                        header.frame_id = "zed_left_camera_optical_frame"
-#                        point_x = int(x+(w/2)) 
-#                        point_y = int(y+(h/2))
-#                        point_z = 0
-#                        point = geometry_msgs.msg.Point(point_x, point_y, point_z)
-#                        point_stamped = geometry_msgs.msg.PointStamped(header, point)
-#                        print("Time: {}.{}".format(detect_msg.header.stamp.secs, detect_msg.header.stamp.nsecs))
-#                        detect_msg.box = [int(x+(w/2)),int(y+(h/2)),w,h]
-#                        detect_msg.confidence = confidences[i]
-#                        pub.publish(point_stamped)
-
         # show the output image and return
         cv2.imshow("Object detection image", image)
         cv2.waitKey(1)
@@ -211,10 +261,11 @@ def object_detection():
         print(err)
         return None
 
+# this function obtains depth values for center image pixels
 def rgb_to_depth(objs):
     depth_image = bridge.imgmsg_to_cv2(listener.depth, "32FC1")
     normalizedImg = np.array(depth_image, dtype=np.float)
-    normalizedImg = cv2.normalize(normalizedImg, normalizedImg, 0, 1, cv2.NORM_MINMAX,
+    normalizedImg = cv2.normalize(normalizedImg, normalizedImg, 1, 0, cv2.NORM_MINMAX,
         dtype=cv2.CV_32F)
  
     # array to fill with desired objects
@@ -242,74 +293,42 @@ def rgb_to_depth(objs):
     cv2.waitKey(1)
     return depth_array
 
+# this function utilizes physical camera parameters and geometry to obtain
+# 3D coordinates of an object in an image at a know depth
 def convert3d(arr):
-    # Get camera intrinsic parameters
-    camera_info = listener.image_info
-    cx = camera_info.K[2]
-    cy = camera_info.K[5]
-    fx = camera_info.K[0] # X focal length of ZED in pixels
-    fy = camera_info.K[4] # Y focal length of ZED in pixels
-
-#    # The ZED has 0.004 mm per pixel at 1280x720 resolution
-#    focal_length_mm = 2.8 # Focal Length of ZED in mm 
-#    focal_length_pix = camera_info.K[0] # Focal Length of ZED in pixels
-#    # mm/pixel of ZED. If running at 1280x720 res, should be ~0.004 mm
-#    mm_per_pixel = focal_length_mm/focal_length_pix  
-#
-#    # FOV_d = 110                              # Field of View of the ZED in degrees
-#    # FOV_r = 110*np.pi/180                    # Field of View of the ZED in radians
-#    """
-#    F = f*(W/w); if you know the camera's digital sensor has a width W in millimiters,
-#    and the image width in pixels is w, you can convert the focal length f to world units.
-#    F is in mm, f is in pixel size, W is sensor width in whatever length unit you can get
-#    it in, and w is in pixels.
-#    """
-#    # Get field of view (fov) angles
-#    img_width_mm = mm_per_pixel * W
-#    theta_horizontal = np.arctan((img_width_mm/2)/focal_length_mm)
-#    fov_horizontal = 2*theta_horizontal
-#    print ("Horizontal Field of View in Degrees = {}".format(fov_horizontal*180/np.pi))
-#    img_height_mm = mm_per_pixel * H
-#    theta_vertical = np.arctan((img_height_mm/2)/focal_length_mm)
-#    fov_vertical = 2*theta_vertical
-#    print ("Vertical Field of View in Degrees = {}".format(fov_vertical*180/np.pi))
-#
-#    alpha_horizontal = (np.pi - fov_horizontal)/2
-#    alpha_vertical = 2*np.pi - (fov_vertical)/2
-
-    # array to fill with desired objects
-    # format: [(label, 3DPointStamped), (..), ...]
-    point3d_array = []
-
-    # retrieve center pixel information
+    # array to fill with desired object 3D coordinates
+    # format: [(label,PointStamped), (..), ...]
+    obj_arr = []
+    
+    # get intrinsic camera properties
+    # all values are in units of pixels
+    p_mat = listener.image_info.P
+    fx, fy, cx, cy = p_mat[0], p_mat[5], p_mat[2], p_mat[6]
+    
     if arr:
         for obj in arr:
-            label = obj[0]
-            depth = obj[1]
-            (centerX, centerY) = obj[2:4] # col = centerX; row = centerY
-            x_new = (centerX - cx) * depth / fx
-            y_new = (centerY - cy) * depth / fy
-            z_new = depth
-            P3D = Point(x_new,y_new,z_new)
+            # values for obj as returned by rgb_to_depth function
+            label, d, c, r = obj[0], obj[1], obj[2], obj[3]
 
-            # Configure the Header message file
+            # calculate 3D point in left_camera's frame from geometry
+            x = ((c-cx)*d)/fx
+            y = ((r-cy)*d)/fy
+            z = d
+            point3d = Point(x,y,z)
+            print("Left camera (X,Y,Z): [{},({}, {}, {})]".format(label,round(x,5),round(y,5),round(z,5)))
+
+            # Configure 3DPointStamped
             h = Header()
-            # Header.seq is handled by the publisher
             h.stamp = rospy.Time.now()
             h.frame_id = 'zed_left_camera_optical_frame'
+            point3d_stamped = PointStamped(h, point3d)
+            obj_arr.append((label, point3d_stamped))
 
-            # Create a PointStamped message file which consists of a Header.msg and Point.msg
-            P3D_Stamped = PointStamped(h, P3D)
-            point3d_array.append((label, P3D_Stamped))
-
-    return point3d_array 
-
+            
+    return obj_arr
+ 
+# this function converts a 3DPoint from ZED camera frame into global frame
 def tf_global(arr, target_frame='map'):
-    """
-    This function takes a PointStamped Message and converts its coordinates into the
-    target_frame coordinates. This is done by tf.TransformerListener.TransformPoint,
-    however timing needs to be implemented in order for this code to work
-    """
     tf_buffer = tf2_ros.Buffer()
     tf2_listener = tf2_ros.TransformListener(tf_buffer)
     transform = tf_buffer.lookup_transform(target_frame,
@@ -326,17 +345,15 @@ def tf_global(arr, target_frame='map'):
             label = obj[0]
             point_stamped = obj[1]
             global_point = listener.transformPoint(target_frame, point_stamped)
-            print ("Global (X,Y,Z) = ({}, {}, {})".format(global_point.point.x,global_point.point.y,global_point.point.z))
+            print ("Global (X,Y,Z) = [{},({}, {}, {})]".format(label,global_point.point.x,global_point.point.y,global_point.point.z))
             global3d_array.append((label,global_point))
 
     return global3d_array
 
+# this function will return an OccupancyGrid object with the specified values 
 def make_grid(width = 100, height = 100, resolution = 0.05):
-     ### MAKE AN OCCUPANCY GRID ###
-
     # Configure the Header message file
     h = Header()
-    # Header.seq is handled by the publisher
     h.stamp = rospy.Time.now()
     h.frame_id = 'map'
     map_load_time = rospy.Time(0)
@@ -357,6 +374,8 @@ def make_grid(width = 100, height = 100, resolution = 0.05):
 
     return OccupancyGrid(h,info,data)
 
+# this function takes an array of 3D points and puts their projection onto an
+# occupancy grid for data visualization
 def modify_grid(arr):
     width = listener.occ_grid.MapMetaData.width
     height = listener.occ_grid.MapMetaData.height
@@ -367,38 +386,17 @@ def modify_grid(arr):
             point_stamped = obj[1]
             if not (math.isnan(point_stamped.point.x) and math.isnan(point_stamped.point.y)):
                 x = int(point_stamped.point.x/resolution)
+
                 #shift the coordinate system over to only deal with positive y values within the grid
                 y_corrected = point_stamped.point.y + width/2 
                 y = int(y_corrected/resolution)
-
                 index = y + x*width
                 data[index] = 100
                 listener.occ_grid.data[index] = data[index]
                 listener.grid_pub.publish(listener.occ_grid)
-
-#def convert_3d(arr):
-#    # array to fill with desired object 3D coordinates
-#    # format: [(label,x,y,z), (....), ...]
-#    obj_arr = []
-#    
-#    # get intrinsic camera properties
-#    # all values are in units of pixels
-#    p_mat = listener.image_info.P
-#    fx, fy, cx, cy = p_mat[0], p_mat[5], p_mat[2], p_mat[6]
-#    
-#    if arr:
-#        for obj in arr:
-#            # values for obj as returned by rgb_to_depth function
-#            label, d, c, r = obj[0], obj[1], obj[2], obj[3]
-#
-#            # calculate 3D point in left_camera's frame from geometry
-#            x = ((c-cx)*d)/fx
-#            y = ((r-cy)*d)/fy
-#            z = d
-#            obj_arr.append((label,round(x,5),round(y,5),round(z,5)))
-#            
-#    return obj_arr
-    
+   
+# this function receives a message on the /ready topic and responds to
+# handle the "stepping" functionality through the rosbag
 def handle_step(msg):
     if (listener.play_mode == "continuous"):
         return
@@ -407,6 +405,9 @@ def handle_step(msg):
         listener.stepping = False # closes step gate
         process_callback()
 
+# the main processing center of the node. All other image processing functions are called
+# from here. process_callback will signal to the gate node when it starts processing
+# and when it finishes by "closing" and "opening" the gate, respectively
 def process_callback():
     try:
         if (listener.play_mode == "auto_step"):
@@ -420,20 +421,20 @@ def process_callback():
         depths = rgb_to_depth(objects) if listener.depth else None
         print("Depths: {}".format(depths)) if depths else print("No depths obtained")
 
-        # Enea's code:
+        # convert3d        -> convert 2d pixel value to 3d coordinates in camera's frame
         points_3d = convert3d(depths) if depths else None
-        #print("3D Points in left camera frame: {}".format(points_3d)) if points_3d else print("No 3D points obtained")
 
-        global_3d = tf_global(points_3d) if points_3d else None
-        print("3D Points in global frame: {}".format(global_3d)) if global_3d else print("No global 3D points obtained")
-        
-        modify_grid(points_3d) if points_3d else None
-
-        # 2d_to_3d         -> (X,Y,Z) and label in camera's ref frame
-        # points_3d = convert_3d(depths) if depths else None
-        # print("3D Points: {}".format(points_3d)) if points_3d else print("No 3D points obtained")
+#######################################################################################
+# NOT FUNCTIONAL YET -> TF and OccupancyGrid Visualization
+#######################################################################################
         # tf_global        -> (X,Y,Z) and label in global frame
+        # global_3d = tf_global(points_3d) if points_3d else None
+        
+        # modify_grid      -> data visualization
+        #modify_grid(points_3d) if points_3d else None
+
         # aggr             -> [(obj,X,Y,Z,W,H)...] accumulated, aggregated list
+#######################################################################################
         
         print("\n")
 
@@ -443,6 +444,10 @@ def process_callback():
     except Exception as err:
         print(err)
 
+# initialize object_detect.py ROS node. This is where the main loop of the code
+# executes continuously. An occupancy grid is initialized. Decisions are made
+# to process callback based on keyboard input and playback mode once the 
+# rospy.spin() main loop has been entered.
 def start_node():
     node_name = "detect"
     for obj in node_objects:
@@ -461,7 +466,7 @@ def start_node():
     if (listener.play_mode != "step"):
         listener.trigger_gate()
 
-    # rospy.spin()
+    # rospy.spin() main loop
     try:
         tty.setcbreak(sys.stdin.fileno())
         while not rospy.core.is_shutdown():
@@ -514,7 +519,8 @@ def start_node():
                 print("Not a valid mode: quitting process . . .")
                 break
 
-            rospy.rostime.wallsleep(delay)
+            # 'delay' controls the speed of code execution in this loop
+            rospy.rostime.wallsleep(delay) 
     finally:
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
@@ -526,38 +532,62 @@ def start_node():
     print("Exiting . . .")
     sys.exit()
 
+"""Run this node as a python 3 script. Code execution will start here."""
 if __name__ == '__main__':
     try:
-        # topics
-        img_topic = "/zed/zed_node/rgb/image_rect_color"
-        img_info_topic = "/zed/zed_node/rgb/camera_info"
-        depth_topic = "/zed/zed_node/depth/depth_registered"
-        depth_info_topic = "/zed/zed_node/depth/camera_info"
-        tf_topic = "/tf"
-        odom_topic = "/zed/zed_node/odom"
-
-        # create listener object to store info from gate node
-        listener = GateListener()
-
         # parse command-line arguments
         ap = argparse.ArgumentParser()
         ap.add_argument("-y", "--yolo", required=True,
-            help="base path to YOLO directory")
+            help="Base path to YOLO directory")
         ap.add_argument("-o", "--objects",
             type=lambda s: [item for item in s.split(',')],
             default=["person"],
-            help="node-specific objects for detection")
+            help="Node-specific objects for detection")
         ap.add_argument("-c", "--confidence", type=float, default=0.5,
-            help="minimum probability to filter weak detections")
+            help="Minimum probability to filter weak detections")
         ap.add_argument("-t", "--threshold", type=float, default=0.3,
-            help="threshold when applyong non-maxima suppression")
+            help="Threshold when applying non-maxima suppression")
         ap.add_argument("-v", "--video", default="None",
-            help="name of video file to write")
+            help="Name of video file to write")
         ap.add_argument("-s", "--speed", type=float, default=0.005,
-            help="speed of main while loop")
+            help="Speed of main while loop")
         ap.add_argument("-p", "--playback", default='a',
-            help="playback mode: (c)ontinuous, (s)tep, (a)uto-step, (f)ast-forward")
+            help="Playback mode: (c)ontinuous, (s)tep, (a)uto-step, (f)ast-forward")
+        ap.add_argument("-z", "--topics",
+            type=lambda s: [item for item in s.split(',')],
+            default=None,
+            help="List of ros topics to listen to. Order must be: camera rgb image topic,\
+                    rgb camera info topic,depth image topic,depth camera info topic,transform\
+                    topic,odometry topic")
         args = vars(ap.parse_args(rospy.myargv()[1:]))
+
+        # default ZED node topics
+        topics = { "img_topic" : "/zed/zed_node/rgb/image_rect_color",
+                "img_info_topic" : "/zed/zed_node/rgb/camera_info",
+                "depth_topic" : "/zed/zed_node/depth/depth_registered",
+                "depth_info_topic" : "/zed/zed_node/depth/camera_info",
+                "tf_topic" : "/tf",
+                "odom_topic" : "/zed/zed_node/odom" }
+
+        # handle non-default topics
+        if args["topics"]:
+            tlist = args["topics"]
+            if (len(tlist) != len(topics.keys())):
+                print("Invalid topics list. Must be {} entries in order.".format(len(topics.keys())))
+                print("List of ros topics to listen to. Order must be: camera rgb image topic,\
+                        rgb camera info topic, depth image topic, depth camera info topic, transform\
+                        topic, odometry topic")
+                sys.exit()
+
+            topics = { "img_topic" : tlist[0],
+            "img_info_topic" : tlist[1],
+            "depth_topic" : tlist[2],
+            "depth_info_topic" : tlist[3],
+            "tf_topic" : tlist[4],
+            "odom_topic" : tlist[5] }
+
+        # create listener object to store info from gate node
+        listener = GateListener()
 
         # set playback mode
         s = args["playback"]
@@ -585,6 +615,20 @@ if __name__ == '__main__':
             print("Invalid mode: {}. Try again. . .".format(s))
             sys.exit()
 
+        """
+        All objects defined here will be used globally throughout the script.
+        LABELS: labels for neural network from coco dataset
+        COLORS: colors to use for displaying output of neural network
+        net: YOLO neural network model itself
+        node_objects: all objects that will be detected and processed by this node
+        topics: dictionary storing the 6 required ROS topic types
+        listener: data storage object to communicate with the gate node
+        bridge: cv_bridge object for converting ROS image messages to OpenCV usage 
+        video_name: object detection output video file name 
+        video_array: global accumulator for images processed during object detection
+        video_write: whether or not the node should make a video upon exiting
+        """
+
         # load the COCO class labels our YOLO model was trained on
         labelsPath = os.path.sep.join([args["yolo"], "coco.names"])
         LABELS = open(labelsPath).read().strip().split("\n")
@@ -602,15 +646,12 @@ if __name__ == '__main__':
         print("[INFO] loading YOLO from disk...")
         net = cv2.dnn.readNetFromDarknet(configPath, weightsPath)
 
-        # global accumulators
-        video_array = []
-
         # Initialize node
         node_objects = args["objects"]
         video_name = args["video"]
-        delay = args["speed"]
+        video_array = []
         video_write = False if (video_name == "None") else True
-#        pub = rospy.Publisher("/detect", geometry_msgs.msg.PointStamped, queue_size=10)
+        delay = args["speed"]
         bridge = CvBridge()
         start_node()
 

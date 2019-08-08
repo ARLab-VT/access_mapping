@@ -7,7 +7,7 @@
 	<arg name="video" doc="Absolute path of video to write" default="None"/>
 
 	<!-- nodes -->
-	<node pkg="access_mapping" name="gate" type="gate.py" args="--rosbag $(arg rosbag) --nodes $(arg objects) --speed $(arg speed)"/>
+	<node pkg="access_mapping" name="gate" type="gate.py" args="--rosbag $(arg rosbag) --objects $(arg objects) --speed $(arg speed)"/>
 
 	<node pkg="access_mapping" name="object_detect" type="object_detect.py" args="--yolo $(arg yolo) --objects $(arg objects) --video $(arg video) --speed $(arg speed)"/>
 
