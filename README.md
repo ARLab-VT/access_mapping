@@ -124,6 +124,7 @@ Demo rosbag file is available here: [link]. Move the rosbag file to `<path_to_ro
 
 6. **Run `object_detect.py` node in `access_mapping` package with default values:**
 ```
+workon cv
 rosrun access_mapping object_detect.py --yolo ../yolo-coco
 ```
 Note: required `--yolo` argument asks for path to folder containing YOLO configuration files, as downloaded in step 6 of install section.
