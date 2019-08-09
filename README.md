@@ -158,6 +158,7 @@ Note: required `--yolo` argument asks for path to folder containing YOLO configu
 Following the default deployment method described above, the output of the `object_detect` node is shown below when set to detect people and chairs:
 
 <video src="https://drive.google.com/file/d/1CvA16TSL0RJWPr5NPtnRIBFrG8VXFNdF/view?usp=sharing" />
+
 ### Occupancy grid
 The 3D global coordinates of objects can be aggregated in a list and utilized in many ways. The output below shows the projection of these points onto a 2D occupancy grid for data visualization:
 
@@ -199,27 +200,39 @@ The goal of this section is to provide documentation on overall usage of the `ac
 ## References
 
 ROS:
+
 http://wiki.ros.org/Documentation
+
 http://wiki.ros.org/melodic/Installation/Ubuntu
 
 Catkin tools:
+
 https://catkin-tools.readthedocs.io/en/latest/quick_start.html
+
 https://answers.ros.org/question/243192/catkin_make-vs-catkin-build/
 
 Python virtual environment:
+
 https://realpython.com/python-virtual-environments-a-primer/
 
 Python 3:
+
 https://medium.com/@beta_b0t/how-to-setup-ros-with-python-3-44a69ca36674
+
 https://github.com/ros/geometry2/issues/259
+
 https://github.com/ros/geometry2/issues/293
 
 OpenCV-Python:
+
 https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_tutorials.html
+
 https://www.pyimagesearch.com/2018/05/28/ubuntu-18-04-how-to-install-opencv/
 
 ZED camera:
+
 https://www.stereolabs.com/zed/
 
 3D coordinates:
+
 http://nicolas.burrus.name/index.php/Research/KinectCalibration
