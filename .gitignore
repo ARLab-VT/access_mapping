@@ -7,4 +7,4 @@ yolo-coco/
 # rosbag/example.bag
 
 # ignore output video file
-images/output.avi
+# images/output.avi

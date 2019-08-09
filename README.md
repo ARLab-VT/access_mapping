@@ -155,9 +155,14 @@ Note: required `--yolo` argument asks for path to folder containing YOLO configu
 
 ## Demo
 ### Object detection
-Following the default deployment method described above, the output of the `object_detect` node is shown below when set to detect people and chairs:
+Following the default deployment method described above, the output of the `object_detect` node is shown below when set to detect people and chairs. A video file of the output is included in the `images` subdirectory.
 
-<video src="/home/eckelsjd/catkin_ws_cb/src/access_mapping/nodes/output.avi"></video>
+RGB image:
+![](images/rgb.png)
+
+Depth image:
+![](images/depth.png)
+
 ### Occupancy grid
 The 3D global coordinates of objects can be aggregated in a list and utilized in many ways. The output below shows the projection of these points onto a 2D occupancy grid for data visualization:
 
@@ -192,7 +197,7 @@ The following ROS topics are used by the `access_mapping` package:
 
 The `rqt_graph` output below shows the interaction of the `gate.py` node with two slam-annotators, `person_detect.py` and `chair_detect.py`, over the topics described above:
 
-![rosgraph](/home/eckelsjd/Pictures/rosgraph.png)
+![rosgraph](images/rosgraph.png)
 
 #### Launch files
 
@@ -252,9 +257,34 @@ Several functionalities within the ROS nodes require user input for proper setup
 As currently setup, the `access_mapping` package only supports SLAM-annotation on a prerecorded rosbag with the necessary ROS topics. A useful feature in the future would be to add support for live SLAM-annotation that runs concurrently as the mapping software. This would require many changes to how the `gate.py` node accesses its information.
 
 #### Alternate recording setups
+
+Current setup only allows for use with the ZED camera and the associated ZED SDK. Further work is required for integration of other recording setups and increased robustness. 
+
 #### Non-visual recognizers
+
+The `object_detect.py` node is the only available slam-annotator, and relies on image streams from a stereo ZED camera for object detection. Accessibility constraints/barriers that are ripe for detection by the current implementation include:
+
+1. Doors and doorways
+2. Handicapped accessible blue buttons/signs
+3. Stairs
+4. Road signs
+
+Other slam-annotators may be developed that account for barriers in the environment not so easily recognized by just an image stream. Such barriers include:
+
+1. Different kinds of terrain (grass, cracked roads, dirt, etc.)
+2. Sidewalk curbs or curb-cuts
+3. Heavily-inclined slopes
+4. Wi-fi signal strength 
+5. Access to lighting for use by solar panels
+6. Loud noise-level zones (construction, machinery, etc.)
+
 #### Multi-session global mapping
+
+Once a working setup is developed using the current implementation, a single map may be generated in a single mapping session that includes all barrier/constraint annotations in the produced occupancy grid. What if someone were to make a separate map during a different mapping session and want to merge the results into the first map? This area could easily turn into many more projects in the future.
+
 #### Front-end 
+
+Data generated and stored by the current implementation, in whatever data structure that takes on, can be used in the future for front-end users for the purpose of navigation. After global mapping has been performed in a given area, with all barrier/constraint annotations included, any front-end user, whether that be an autonomous robot or a disabled person, will need an interface or method by which their navigation stack takes into account the given barriers in the environment for global path planning.
 
 
 ## References
