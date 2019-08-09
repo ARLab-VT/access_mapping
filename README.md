@@ -157,7 +157,8 @@ Note: required `--yolo` argument asks for path to folder containing YOLO configu
 ### Object detection
 Following the default deployment method described above, the output of the `object_detect` node is shown below when set to detect people and chairs:
 
-<video src="https://drive.google.com/file/d/1CvA16TSL0RJWPr5NPtnRIBFrG8VXFNdF/view?usp=sharing" />
+<video src="/home/eckelsjd/catkin_ws_cb/src/access_mapping/nodes/output.avi"></video>
+
 ### Occupancy grid
 The 3D global coordinates of objects can be aggregated in a list and utilized in many ways. The output below shows the projection of these points onto a 2D occupancy grid for data visualization:
 
@@ -167,28 +168,90 @@ The 3D global coordinates of objects can be aggregated in a list and utilized in
 ## Contribute
 ### Project detail
 The goal of this section is to provide documentation on overall usage of the `access_mapping` package.
+
 #### Nodes
+##### Gate
+The `gate.py` node, located in the `access_mapping/nodes` subdirectory, acts in place of the standard `rosbag play` command line tool, with added control over the speed and timing of publishing messages contained in the rosbag. The node was developed to account for execution overhead involved with object recognition algorithms. The node utilizes the `rosbag` API to read a rosbag from a file and play it back within given constraints. The goal of the `gate.py` node is to control the release of ROS messages based on the processing time of all connected 'slam-annotators'. Slam-annotators are all nodes within the `access_mapping` package that develop and export a list of detected constraints in the environment, as well as their locations. All 'slam-annotators' should be connected to the `gate.py` node and communicate their readiness to process more messages upon completion of object recognition algorithms. Please see the documentation within the `gate.py` python script for usage details.
+
+##### Object detection
+The `object_detect.py` node, located in the `access_mapping/nodes` subdirectory, is the only current 'slam-annotator' node. The `object_detect` annotator performs object recognition and image localization using a pre-trained YOLO neural network. The node can be configured to detect any of the 80 objects in the 'coco' dataset. The `object_detect` node communicates with the `gate.py` node to regulate processing time, and can be played back in any of 4 separate playback modes. Multiple instances of the `object_detect` node can be initialized on separate machines to recognize and publish the locations of various objects in the environment, and still communicate with the same gate node. Note: the `object_detect` node is python 3 dependent and should be played while the python 3 virtual environment `cv`, as setup during installation, is activated. Please see the documentation within the `object_detect.py` python script for usage details.
+
+#### Topics
+The following ROS topics are used by the `access_mapping` package:
+
+| Topic                                | Message type           | Description                                         |
+| ------------------------------------ | ---------------------- | --------------------------------------------------- |
+| /zed/zed_node/rgb/image_rect_color   | sensor_msgs/Image      | RGB image stream                                    |
+| /zed/zed_node/rgb/camera_info        | sensor_msgs/CameraInfo | RGB camera info                                     |
+| /zed/zed_node/depth/depth_registered | sensor_msgs/Image      | Depth image stream                                  |
+| /zed/zed_node/depth/camera_info      | sensor_msgs/CameraInfo | Depth camera info                                   |
+| /tf                                  | tf2_msgs/TFMessage     | Transform information                               |
+| /zed/zed_node/odom                   | nav_msgs/Odometry      | Camera odometry information                         |
+| /tf_static                           | tf2_msgs/TFMessage     | Basic transform information                         |
+| /ready                               | std_msgs/String        | Communication line between gate and slam-annotators |
+| /end                                 | std_msgs/String        | For processing gate shutdown                        |
+
+The `rqt_graph` output below shows the interaction of the `gate.py` node with two slam-annotators, `person_detect.py` and `chair_detect.py`, over the topics described above:
+
+![rosgraph](/home/eckelsjd/Pictures/rosgraph.png)
+
 #### Launch files
+
+Work is in progress on creating a launch file, `SLAM_annotate.launch`, to run the `gate.py` node along with any number of slam-annotator nodes. For now, please see the Deployment section above for proper setup and deployment of the ROS system. All launch files should be placed in the `access_mapping/launch` subdirectory.
+
 #### Message files
+
+There are no current new custom message types needed by the `access_mapping` package. In the future, it might be necessary to create new message types to export all required data out of the slam-annotators. All custom message types should be placed in the  `access_mapping/msg` subdirectory, and the `CMakeLists.txt` file and `package.xml` file should be updated as needed.
 
 ### Current bugs
 #### Step-mode
+
+When the `object_detect.py` node is run in step-mode:
+
+```bash
+rosrun access_mapping object_detect.py --yolo ../yolo-coco --playback s
+```
+
+the user should be able to step through each set of messages in the rosbag file, (loaded by the `gate` node), by pressing the 's' key. The user may exit the program by pressing 'q'. One 'step' through the rosbag should only load one new set of the 6 ROS topics recorded by the ZED camera. However, when the 's' key is held down for sustained periods of time, the rosbag will begin playing all messages nonstop. Functionality should be to only step once per press of the 's' key. The bug is most attributable to the method in which keyboard input is read by the `object_detect.py` script. 
+
 #### Global transform
+
+Functionality of the `object_detect.py` node should be to transform 3D points obtained in the camera's frame into a global frame. Calling of the `tf_global` function in the `object_detect.py` script does not currently perform this functionality correctly and results in various error messages. Current work is focused on solving this problem.
+
 #### Occupancy grid
+
+Data from the `object_detect.py` node is used to modify an occupancy grid hard-coded within the node. This occupancy grid is then displayed in `rviz`. Methods do not currently exist to create a dynamic occupancy grid that grows as points on the map grow. There is also no current implementation for clean storage or export of this occupancy grid for further use outside of the `object_detect` node. The implementation of some kind of export functionality will be necessary for future work, with an end goal to have occupancy grid data from the slam-annotators to be imported for use in current SLAM-mapping technologies, primarily the ROS package `rtabmap_ros`.
 
 ### Features not currently supported
 #### System support
-#### Launch files
-#### Global transform
+
+The `access_mapping` ROS package has only been tested and developed on a fresh Ubuntu 18.04 installation. Work in the future will be required to develop the package for robustness and transportability to other system setups and installations.
+
 #### Data aggregation and export
-#### Data visualization
+
+Current functionality only finds objects from an image stream and uses their location to modify a hard-coded occupancy grid, as described in the "Occupancy grid" section above. Desired functionality is to aggregate all object observations, accounting for repeated objects, and output a useful data structure for data visualization and mapping.
+
 #### Integration with rtabmap_ros
+
+As mentioned in the "Occupancy grid" section above, the end goal of the slam-annotator nodes would be to export and display object location information alongside the output of the `rtabmap_ros` ROS SLAM package. The end-product would be an occupancy grid map that shows all physical barriers recorded during the mapping session that is annotated with objects/barriers detected by the slam-annotator nodes.
 
 ### Future work
 #### Alternate neural networks
+
+As setup currently, the `object_detect.py` node utilizes a YOLOv3 neural network for all object detection algorithms. In the future, it might be desired or necessary to incorporate support for other popular, versatile, or home-made neural network models. Configuration and usage of the YOLO network would be replaced within the `object_detect.py` node, or perhaps another separate node might be made for each desired neural network model. 
+
 #### Training neural network
+
+The YOLO network in use currently is pre-trained on a set of 80 class labels, as found in the "coco" dataset. An end goal of this project is to recognize various barriers to handicapped or disabled users, including stairs, handicapped-accessible blue buttons, doors, etc. It will be necessary to find or prepare a dataset of images in a desired class to train a neural network for object recognition on any of these potential barriers.
+
 #### User input
+
+Several functionalities within the ROS nodes require user input for proper setup and execution, including loading a neural network from a file and reading and playing back a rosbag from a file. Any time user input is required, there are many chances for breaking code from invalid or improperly formatted input. More work can be done in error-handling invalid user input. Another nice feature to add would be a clean, efficient, and easy way for users to know and format information they can specify on the command-line when running the nodes. A configuration file can also be setup that the user fills out with all necessary information, and the system handles the formatting and parsing of the information.
+
 #### Rosbag v. live recording
+
+As currently setup, the `access_mapping` package only supports SLAM-annotation on a prerecorded rosbag with the necessary ROS topics. A useful feature in the future would be to add support for live SLAM-annotation that runs concurrently as the mapping software. This would require many changes to how the `gate.py` node accesses its information.
+
 #### Alternate recording setups
 #### GUI for easy visualization
 #### Non-visual recognizers
