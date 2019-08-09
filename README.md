@@ -10,9 +10,13 @@ All work on the `access_mapping` package is part of ongoing academic research at
 ### System
 All installation steps below were performed and tested on a fresh Ubuntu 18.04 installation. Support for other platforms is not available at this time. Instructions below assume a fresh Ubuntu 18.04 installation, and it is advised to gain access to one if not already available. All testing on installation was performed on a Ubuntu 18.04 installation dual-booted with Windows 10.
 **See [dual-boot](https://itsfoss.com/install-ubuntu-1404-dual-boot-mode-windows-8-81-uefi/) options and instructions.**
+
 **[EaseUS](https://www.easeus.com/?ad&gclid=EAIaIQobChMI1aiA9rnx4wIVEp6fCh3-7Qe3EAAYASAAEgJ06vD_BwE) is recommended for disk partition management.**
+
 **[WinDirStat](https://windirstat.net/) is recommended for hard disk space management.**
+
 A hard disk partition of 30GB or more will be sufficient for installation of Ubuntu and all required software for the `access_mapping` package.
+
 ### Required software
 All required software will be installed with associated dependencies in the installation section below. The `access_mapping` package is being developed as a possible plug-in map-annotator for the existing SLAM package: `rtabmap_ros`. See their ROS wiki page [here](http://wiki.ros.org/rtabmap_ros).
 #### ROS Melodic
@@ -52,24 +56,39 @@ cd ~
 git clone https://github.com/ARLab-VT/Access_SLAMNav_deployment.git
 cd Access_SLAMNav_deployment.git/slam_annotator
 ```
-3. **Allow execution of both install scripts:** 
+3. **Allow execution of the install script:** 
 ```bash
 chmod +x install_first.sh
-chmod +x install_second.sh
 ```
-4. **Run the first installation script:**
+4. **Run the installation script:**
 ```bash
 ./install_first.sh
 ```
-Allow the  script to run to completion. Confirm installation of all required packages as the script runs by pressing enter or typing password as prompted.`install_first.sh` downloads ROS Melodic and builds OpenCV 3.4.7 from source into a python 3 virtual environment.
+Allow the  script to run to completion. Confirm installation of all required packages as the script runs by pressing enter or typing password as prompted. `install_first.sh` downloads ROS Melodic and builds OpenCV 3.4.7 from source into a python 3 virtual environment.
 
 5. **Open a new terminal window:**`Ctrl+Alt+t`
-
-6. **Run the second installation script by entering the following into the new terminal:**
+6. **Setup the catkin workspace by typing the following commands:**
 ```bash
-./install_second.sh
+rossource
+cd ~
+mkdir -p catkin_ws_cb/src
+cd catkin_ws_cb/src
+git clone https://github.com/ros/geometry
+git clone https://github.com/ros/geometry2
+git clone -b melodic https://github.com/ros-perception/vision_opencv.git
+git clone https://github.com/ARLab-VT/access_mapping.git
+cd ..
+workon cv
+pip install rospkg catkin_pkg pyyaml empy
+catkin config -DPYTHON_EXECUTABLE=~/virtualenvs/cv/bin/python -DPYTHON_INCLUDE_DIR=~/.virtualenvs/cv/include/python3.6m
+catkin config --no-install
+catkin build
+source devel/setup.bash
+echo -e "\n# Source the catkin workspace" >> ~/.bashrc
+echo "alias catsource='source ~/catkin_ws_cb/devel/setup.bash'" >> ~/.bashrc
+source ~/.bashrc
 ```
-Allow the script to run to completion and confirm all installation requests. `install_second.sh` sets up a catkin workspace and builds several ROS packages for use with python 3. It also clones the `access_mapping` repository and builds it for use with python 3.
+Confirm all installation requests. A catkin workspace was set up and several ROS packages were built for use with python 3. The `access_mapping` package was also built for python 3. 
 
 7. **Download the YOLOv3 neural network model for use with OpenCV's `dnn` neural network module.** Navigate to the link below and save the `yolo-coco` folder in the source directory of the `access_mapping` package. Download [yolo-coco]( https://tinyurl.com/yolo-files) as a .zip file.
 ```bash
@@ -118,7 +137,7 @@ roscd access_mapping
 cd nodes
 rosrun access_mapping gate.py --rosbag <path_to_rosbag_file>
 ```
-Demo rosbag file is available here: [link]. Move the rosbag file to `<path_to_rosbag_file>` as mentioned above.
+Demo rosbag file is available here: [link](https://drive.google.com/a/vt.edu/file/d/1WGNZxInwvxj2nUxIN669mHUPpJP6F9LL/view?usp=sharing). Move the rosbag file to `<path_to_rosbag_file>` as mentioned above.
 
 5. **Open new terminal window and source setup files.**
 
@@ -136,18 +155,9 @@ Note: required `--yolo` argument asks for path to folder containing YOLO configu
 
 ## Demo
 ### Object detection
-Following the default deployment method described above, the output of the `object_detect` node is shown below.
+Following the default deployment method described above, the output of the `object_detect` node is shown below when set to detect people and chairs:
 
-[video not currently available]
-
-Parameters can be changed to detect multiple kinds of objects as well:
-
-[video not currently available]
-
-### Locate in 3D global space
-The following output of the `object_detect` node gives the location of a detected object in global coordinates:
-
-[output not currently available]
+<video src="https://drive.google.com/file/d/1CvA16TSL0RJWPr5NPtnRIBFrG8VXFNdF/view?usp=sharing" />
 
 ### Occupancy grid
 The 3D global coordinates of objects can be aggregated in a list and utilized in many ways. The output below shows the projection of these points onto a 2D occupancy grid for data visualization:
