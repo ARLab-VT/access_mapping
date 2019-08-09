@@ -2,6 +2,11 @@
 ## Project
 ### Motivation
 The `access_mapping` repository  is designed as a ROS (Robotic Operating System) package to be built inside a catkin workspace as setup in the installation section below. The goal of this package is to provide ROS nodes capable of identifying potential barriers or constraints in the environment for the purpose of autonomous robot or handicapped/accessibility navigation and traversability. A long term use of these capabilities would be the potential to generate global maps of the environment (using existing Simultaneous Localization and Mapping (SLAM)-based approaches) that are annotated and labeled with different barriers. These global maps, that have been annotated with the location of barriers such as stairs, doors, and handicap-accessible blue buttons, could then be exploited for front-end use, allowing users to plan an optimized path from point A to point B that accounts for all personally potential barriers, whether the user is a handicapped wheelchair user or a small autonomous rover. 
+
+**Figure 1: SLAM-annotation block diagram**
+
+![](images/slam_workflow.png)
+
 ### Context
 All work on the `access_mapping` package is part of ongoing academic research at the Assistive Robotics Lab at Virginia Tech. The idea for the project stemmed from the social engineering principles surrounding handicapped navigation on the Virginia Tech campus and grew out of its applicability to both fields of autonomous navigation and social engineering. All research was funded by the National Science Foundation (NSF) as part of a Research Experience for Undergraduates (REU) program at Virginia Tech in Automotive Engineering.
 
@@ -157,10 +162,12 @@ Note: required `--yolo` argument asks for path to folder containing YOLO configu
 ### Object detection
 Following the default deployment method described above, the output of the `object_detect` node is shown below when set to detect people and chairs. A video file of the output is included in the `images` subdirectory.
 
-RGB image:
+**Figure 2: RGB image from YOLO object detection**
 ![](images/rgb.png)
 
-Depth image:
+
+
+**Figure 3: Annotated depth image from ZED camera**
 ![](images/depth.png)
 
 ### Occupancy grid
@@ -196,6 +203,10 @@ The following ROS topics are used by the `access_mapping` package:
 | /end                                 | std_msgs/String        | For processing gate shutdown                        |
 
 The `rqt_graph` output below shows the interaction of the `gate.py` node with two slam-annotators, `person_detect.py` and `chair_detect.py`, over the topics described above:
+
+
+
+**Figure 4: access_mapping ROS node/topic diagram**
 
 ![rosgraph](images/rosgraph.png)
 
